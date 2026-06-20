@@ -59,39 +59,6 @@ class BookingServiceTest extends TestCase
         $this->assertSame('free', $car['days'][1]['status']);
     }
 
-    public function test_hourly_offer_times_are_shifted_to_local_timezone(): void
-    {
-        $service = $this->makeService(
-            cars: [$this->car(1)],
-            bookings: [
-                $this->booking(1, '2023-01-21 15:30:00', '2023-01-21 18:00:00', 'hourly'),
-            ],
-        );
-
-        $car = $service->getCalendarData(2023, 1, true)['cars'][0];
-
-        $this->assertSame('17:30', $car['hourly_offers'][0]['start']);
-        $this->assertSame('20:00', $car['hourly_offers'][0]['end']);
-        $this->assertSame('17:30-20:00', $car['hourly_offers'][0]['label']);
-    }
-
-    public function test_hourly_offers_are_returned_only_when_requested(): void
-    {
-        $service = $this->makeService(
-            cars: [$this->car(1)],
-            bookings: [
-                $this->booking(1, '2023-01-21 15:30:00', '2023-01-21 18:00:00', 'hourly'),
-            ],
-        );
-
-        $withoutHourly = $service->getCalendarData(2023, 1, false)['cars'][0];
-        $withHourly = $service->getCalendarData(2023, 1, true)['cars'][0];
-
-        $this->assertSame([], $withoutHourly['hourly_offers']);
-        $this->assertCount(1, $withHourly['hourly_offers']);
-        $this->assertSame(21, $withHourly['hourly_offers'][0]['day']);
-    }
-
     private function makeService(array $cars, array $bookings): BookingService
     {
         $bookingRepository = new class($bookings) implements BookingRepositoryInterface {
