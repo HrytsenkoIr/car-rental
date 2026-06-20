@@ -8,7 +8,7 @@ use Carbon\Carbon;
 
 class BookingService
 {
-    private const TIMEZONE        = 'Europe/Kiev';
+    private const TIMEZONE        = 'Etc/GMT-2';
     private const DAY_START       = 9;
     private const DAY_END         = 21;
     private const FREE_HOURS      = 9;
@@ -26,10 +26,10 @@ class BookingService
         $tz = self::TIMEZONE;
 
         $periodStart = Carbon::createFromDate($year, $month, 1, $tz)
-            ->startOfDay()->utc()->toDateTimeString();
+            ->startOfDay()->toDateTimeString();
 
         $periodEnd = Carbon::createFromDate($year, $month, 1, $tz)
-            ->endOfMonth()->endOfDay()->utc()->toDateTimeString();
+            ->endOfMonth()->endOfDay()->toDateTimeString();
 
         $daysInMonth = Carbon::createFromDate($year, $month, 1, $tz)->daysInMonth;
 
@@ -127,6 +127,15 @@ class BookingService
         return ['free' => $free, 'busy' => $busy, 'service' => $service, 'days' => array_values($days)];
     }
 
+    private function toLocal(mixed $value, string $tz): Carbon
+    {
+        $raw = $value instanceof \DateTimeInterface
+            ? $value->format('Y-m-d H:i:s')
+            : (string) $value;
+
+        return Carbon::parse($raw, $tz);
+    }
+
     private function getHourlyOffers(
         array $bookings,
         int $year,
@@ -141,8 +150,8 @@ class BookingService
                 continue;
             }
 
-            $start = Carbon::parse($booking->start_date)->setTimezone($tz);
-            $end = Carbon::parse($booking->end_date)->setTimezone($tz);
+            $start = $this->toLocal($booking->start_date, $tz);
+            $end   = $this->toLocal($booking->end_date, $tz);
 
             for ($day = 1; $day <= $daysInMonth; $day++) {
                 $dayStart = Carbon::create($year, $month, $day, 0, 0, 0, $tz);
@@ -180,8 +189,9 @@ class BookingService
             if ($excludeSource && $b->source === $excludeSource) {
                 continue;
             }
-            $bStart = Carbon::parse($b->start_date)->setTimezone($tz);
-            $bEnd   = Carbon::parse($b->end_date)->setTimezone($tz);
+
+            $bStart = $this->toLocal($b->start_date, $tz);
+            $bEnd   = $this->toLocal($b->end_date, $tz);
 
             if ($bStart->lt($windowEnd) && $bEnd->gt($windowStart)) {
                 $result[] = [
@@ -240,13 +250,14 @@ class BookingService
         }
 
         $gaps = [];
-        $gaps[] = $merged[0][0] - $windowStart->timestamp;
-        for ($i = 0; $i < count($merged) - 1; $i++) {
-            $gaps[] = $merged[$i + 1][0] - $merged[$i][1];
+        $currentTime = $windowStart->timestamp;
+
+        foreach ($merged as [$s, $e]) {
+            $gaps[] = $s - $currentTime;
+            $currentTime = max($currentTime, $e);
         }
-        $gaps[] = $windowEnd->timestamp - end($merged)[1];
+        $gaps[] = $windowEnd->timestamp - $currentTime;
 
         return max($gaps) / 3600;
     }
 }
-
